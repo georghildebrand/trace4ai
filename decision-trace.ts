@@ -920,6 +920,8 @@ class TraceUIComponent {
   private decisionGroupIndex = 0;
   /** View to restore after detail exits (decision_detail or sub_timeline) */
   private previousDetailView: UIView = "sub_timeline";
+  /** Show raw command/output inline in sub-timeline */
+  private showInlineRaw = false;
   focused = false;
 
   constructor(
@@ -1188,10 +1190,27 @@ class TraceUIComponent {
         ? " " + mk + " " + th.fg("accent", timeStr) + " " + icon + " " + th.fg("accent", tl)
         : "  " + timeStr + " " + icon + " " + th.fg("dim", tl);
       lines.push(r.row(truncateToWidth(line, innerW)));
+
+      // Inline raw preview when toggled
+      if (sel && this.showInlineRaw) {
+        if (e.rawCommand) {
+          for (const cl of e.rawCommand.split("\n").slice(0, 4)) {
+            lines.push(r.row("  " + th.fg("dim", "│ " + truncateToWidth(cl, innerW - 6))));
+          }
+        }
+        if (e.rawOutput) {
+          for (const ol of e.rawOutput.split("\n").slice(0, 3)) {
+            lines.push(r.row("  " + th.fg("dim", "> " + truncateToWidth(ol, innerW - 6))));
+          }
+        }
+      }
     }
 
     lines.push(r.sep());
-    lines.push(r.row(" " + th.fg("dim", "Enter=Detail Esc=Back")));
+    const footer = this.showInlineRaw
+      ? truncateToWidth("↑↓=Nav Enter=Detail v=Hide Esc=Back", innerW)
+      : truncateToWidth("↑↓=Nav Enter=Detail v=Preview Esc=Back", innerW);
+    lines.push(r.row(" " + th.fg("dim", footer)));
     lines.push(r.bottom());
     if (this.focused) lines.push(CURSOR_MARKER);
     return lines;
@@ -1233,14 +1252,41 @@ class TraceUIComponent {
         lines.push(r.row(" " + th.fg("dim", "Files:")));
         for (const f of e.files.slice(0, 4)) lines.push(r.row(" " + truncateToWidth(f, innerW - 3)));
       }
-      if (e.detail) {
+
+      // Show raw command (the edit/change itself)
+      if (e.rawCommand) {
+        lines.push(r.empty());
+        lines.push(r.row(" " + th.fg("dim", "Command:")));
+        const cmdLines = e.rawCommand.split("\n");
+        for (const l of cmdLines.slice(0, 8)) {
+          lines.push(r.row("  │" + truncateToWidth(l, innerW - 4)));
+        }
+        if (cmdLines.length > 8) {
+          lines.push(r.row("  " + th.fg("dim", "… (" + (cmdLines.length - 8) + " more line(s))")));
+        }
+      }
+
+      // Show raw output (result of the operation)
+      if (e.rawOutput) {
+        lines.push(r.empty());
+        lines.push(r.row(" " + th.fg("dim", "Output:")));
+        const outLines = e.rawOutput.split("\n");
+        for (const l of outLines.slice(0, 6)) {
+          lines.push(r.row("  │" + truncateToWidth(l, innerW - 4)));
+        }
+        if (outLines.length > 6) {
+          lines.push(r.row("  " + th.fg("dim", "… (" + (outLines.length - 6) + " more line(s))")));
+        }
+      }
+
+      if (e.detail && !e.rawCommand && !e.rawOutput) {
         lines.push(r.empty());
         lines.push(r.row(" " + th.fg("dim", "Info:")));
         lines.push(r.row(" " + truncateToWidth(e.detail, innerW - 2)));
       }
     }
     lines.push(r.sep());
-    lines.push(r.row(" " + th.fg("dim", "Enter/Esc=Back")));
+    lines.push(r.row(" " + th.fg("dim", "Esc=Back")));
     lines.push(r.bottom());
     if (this.focused) lines.push(CURSOR_MARKER);
     return lines;
@@ -1415,10 +1461,12 @@ class TraceUIComponent {
       const e = this.subEvents[this.selectedIndex];
       if (e) { this.detailEvent = e; this.previousDetailView = this.view; this.view = "detail"; }
     }
+    else if (data === "v" || data === "V") { this.showInlineRaw = !this.showInlineRaw; }
     else if (matchesKey(data, "escape")) {
       this.view = "decision_detail";
       this.subActivity = null;
       this.subEvents = [];
+      this.showInlineRaw = false;
     }
   }
 
