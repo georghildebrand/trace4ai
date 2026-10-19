@@ -83,6 +83,8 @@ export interface DecisionGroup {
   opCount: number;
   /** File change count (edits + creates) */
   fileChangeCount: number;
+  /** Rationale / intention (from decision event's detail) */
+  detail?: string;
   /** Activities within this decision */
   activities: AggregatedActivity[];
 }
@@ -849,6 +851,7 @@ function groupEventsByDecision(events: TraceEvent[]): DecisionGroup[] {
     const title = decisionEvent.length > 0
       ? (decisionEvent[0]?.title || "Decision")
       : (decId || "Unassigned");
+    const detail = decisionEvent.length > 0 ? decisionEvent[0]?.detail : undefined;
 
     groups.push({
       id: decId,
@@ -858,6 +861,7 @@ function groupEventsByDecision(events: TraceEvent[]): DecisionGroup[] {
       files: allDecFiles,
       opCount: totalOps,
       fileChangeCount: fileChangeDedup.length,
+      detail,
       activities,
     });
   }
@@ -946,6 +950,9 @@ class TraceUIComponent {
     this.decisionGroups = groupEventsByDecision(filtered.reverse());
     if (this.selectedIndex >= this.decisionGroups.length) {
       this.selectedIndex = Math.max(0, this.decisionGroups.length - 1);
+    }
+    if (this.decisionGroupIndex >= this.decisionGroups.length) {
+      this.decisionGroupIndex = Math.max(0, this.decisionGroups.length - 1);
     }
   }
 
@@ -1051,6 +1058,12 @@ class TraceUIComponent {
           : "  " + icon + " " + th.fg("text", titleLine) + " " + rm;
         lines.push(r.row(truncateToWidth(line1, innerW)));
 
+        // Rationale line (show first 60 chars)
+        if (g.detail) {
+          const brief = truncateToWidth(g.detail, Math.min(innerW - 6, 60));
+          lines.push(r.row("   " + th.fg("dim", brief)));
+        }
+
         // Stats line: files modified · operations
         if (g.fileChangeCount > 0 || g.opCount > 0) {
           const parts: string[] = [];
@@ -1097,15 +1110,22 @@ class TraceUIComponent {
     lines.push(r.title("📋 " + truncateToWidth(this.decisionTitle, innerW - 6)));
     lines.push(r.sep());
 
-    // Decision stats
-    const g = this.decisionGroups.length > 0 ? this.decisionGroups[this.selectedIndex] : null;
+    // Decision stats (use decisionGroupIndex, not selectedIndex)
+    const g = this.decisionGroups.length > 0 ? this.decisionGroups[this.decisionGroupIndex] : null;
     if (g) {
+      // Show rationale detail
+      if (g.detail) {
+        lines.push(r.row(" " + th.fg("dim", truncateToWidth(g.detail, innerW - 4))));
+      }
       const parts: string[] = [];
       if (g.fileChangeCount > 0) parts.push(g.fileChangeCount + " file(s)");
       if (g.opCount > 0) parts.push(g.opCount + " op(s)");
       if (g.files && g.files.length > 0) {
         const f = truncateToWidth(g.files.slice(0, 2).join(", "), innerW - 6);
         lines.push(r.row(" " + th.fg("dim", f)));
+      }
+      if (parts.length > 0) {
+        lines.push(r.row(" " + th.fg("dim", parts.join(" · "))));
       }
       lines.push(r.sep());
     }
