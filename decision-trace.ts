@@ -1193,12 +1193,15 @@ class TraceUIComponent {
 
       // Inline raw preview when toggled
       if (sel && this.showInlineRaw) {
+        let hasContent = false;
+        // Debug: always show event type and tool
+        lines.push(r.row("  " + th.fg("dim", "[" + e.category + "]" + (e.toolName ? " " + e.toolName : "") + " rawCmd=" + (e.rawCommand ? "yes" : "no") + " rawOut=" + (e.rawOutput ? "yes" : "no"))));
         if (e.rawCommand) {
-          for (const cl of e.rawCommand.split("\n").slice(0, 4)) {
-            lines.push(r.row("  " + th.fg("dim", "│ " + truncateToWidth(cl, innerW - 6))));
-          }
+          hasContent = true;
+          lines.push(r.row("  " + th.fg("dim", "  " + truncateToWidth(e.rawCommand, innerW - 6))));
         }
         if (e.rawOutput) {
+          hasContent = true;
           for (const ol of e.rawOutput.split("\n").slice(0, 3)) {
             lines.push(r.row("  " + th.fg("dim", "> " + truncateToWidth(ol, innerW - 6))));
           }
