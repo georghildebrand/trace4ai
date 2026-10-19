@@ -1641,6 +1641,11 @@ export default function (pi: ExtensionAPI) {
       decision: activeDecision?.id,
       rawCommand: toolName === "bash"
         ? (input as any).command?.slice(0, 1000)
+        : toolName === "edit"
+        ? (input as any).command?.slice(0, 1000) ||
+          ((input as any).oldText?.slice(0, 200) ? "replace: " + (input as any).oldText?.slice(0, 200) + " → " + (input as any).newText?.slice(0, 200) : undefined)
+        : toolName === "write"
+        ? (input as any).path + " (" + ((input as any).content?.length || 0) + " chars)"
         : undefined,
     });
 
