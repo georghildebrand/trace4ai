@@ -1191,17 +1191,21 @@ class TraceUIComponent {
         : "  " + timeStr + " " + icon + " " + th.fg("dim", tl);
       lines.push(r.row(truncateToWidth(line, innerW)));
 
-      // Inline raw preview when toggled
+      // Inline preview when toggled
       if (sel && this.showInlineRaw) {
-        let hasContent = false;
-        // Debug: always show event type and tool
-        lines.push(r.row("  " + th.fg("dim", "[" + e.category + "]" + (e.toolName ? " " + e.toolName : "") + " rawCmd=" + (e.rawCommand ? "yes" : "no") + " rawOut=" + (e.rawOutput ? "yes" : "no"))));
+        // Show decision rationale (the "why")
+        if (e.decision) {
+          const dec = this.store.getById(e.decision);
+          if (dec?.detail) {
+            lines.push(r.row("  " + th.fg("warning", "why " + truncateToWidth(dec.detail, innerW - 8))));
+          }
+        }
+        // Show raw command (the "what")
         if (e.rawCommand) {
-          hasContent = true;
           lines.push(r.row("  " + th.fg("dim", "  " + truncateToWidth(e.rawCommand, innerW - 6))));
         }
+        // Show raw output (the result)
         if (e.rawOutput) {
-          hasContent = true;
           for (const ol of e.rawOutput.split("\n").slice(0, 3)) {
             lines.push(r.row("  " + th.fg("dim", "> " + truncateToWidth(ol, innerW - 6))));
           }
@@ -1634,25 +1638,24 @@ export default function (pi: ExtensionAPI) {
     const classified = classifyActivity(toolName, input);
     const activeDecision = store.getActiveDecision();
 
-    // Build rawCommand: for bash → command string; for file tools → natural command or path + summary
+    // Build rawCommand: for bash → command string;
+    // for file tools → dump input keys so we can see what's available
     let rawCmd: string | undefined;
     if (toolName === "bash") {
       rawCmd = (input as any).command?.slice(0, 1000);
-    } else if (toolName === "edit") {
-      const cmd = (input as any).command?.slice(0, 500);
-      if (cmd) rawCmd = cmd;
-      else {
-        const p = (input as any).path || "";
-        const oldT = (input as any).oldText?.slice(0, 80) || "";
-        const newT = (input as any).newText?.slice(0, 80) || "";
-        rawCmd = p;
-        if (oldT || newT) rawCmd += " → " + (oldT ? "\"" + oldT + "\"" : "");
-        if (newT) rawCmd += " → " + "\"" + newT + "\"";
-      }
-    } else if (toolName === "write") {
-      const p = (input as any).path || "";
-      const cLen = (input as any).content?.length || 0;
-      rawCmd = p + " (" + cLen + " chars)";
+    } else {
+      try {
+        // Capture all input keys + first 200 chars of each value
+        const parts: string[] = [];
+        for (const k of Object.keys(input as any)) {
+          const v = (input as any)[k];
+          if (typeof v === "string") parts.push(k + "=" + v.slice(0, 200));
+          else if (typeof v === "number") parts.push(k + "=" + v);
+          else if (v === null || v === undefined) parts.push(k + "=null");
+          else parts.push(k + "=" + JSON.stringify(v).slice(0, 200));
+        }
+        rawCmd = parts.join(" ").slice(0, 500);
+      } catch { rawCmd = undefined; }
     }
 
     const traceEvent = store.record({
