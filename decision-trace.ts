@@ -1634,6 +1634,27 @@ export default function (pi: ExtensionAPI) {
     const classified = classifyActivity(toolName, input);
     const activeDecision = store.getActiveDecision();
 
+    // Build rawCommand: for bash → command string; for file tools → natural command or path + summary
+    let rawCmd: string | undefined;
+    if (toolName === "bash") {
+      rawCmd = (input as any).command?.slice(0, 1000);
+    } else if (toolName === "edit") {
+      const cmd = (input as any).command?.slice(0, 500);
+      if (cmd) rawCmd = cmd;
+      else {
+        const p = (input as any).path || "";
+        const oldT = (input as any).oldText?.slice(0, 80) || "";
+        const newT = (input as any).newText?.slice(0, 80) || "";
+        rawCmd = p;
+        if (oldT || newT) rawCmd += " → " + (oldT ? "\"" + oldT + "\"" : "");
+        if (newT) rawCmd += " → " + "\"" + newT + "\"";
+      }
+    } else if (toolName === "write") {
+      const p = (input as any).path || "";
+      const cLen = (input as any).content?.length || 0;
+      rawCmd = p + " (" + cLen + " chars)";
+    }
+
     const traceEvent = store.record({
       category: classified.category,
       title: classified.title,
@@ -1642,14 +1663,7 @@ export default function (pi: ExtensionAPI) {
       toolName,
       toolCallId,
       decision: activeDecision?.id,
-      rawCommand: toolName === "bash"
-        ? (input as any).command?.slice(0, 1000)
-        : toolName === "edit"
-        ? (input as any).command?.slice(0, 1000) ||
-          ((input as any).oldText?.slice(0, 200) ? "replace: " + (input as any).oldText?.slice(0, 200) + " → " + (input as any).newText?.slice(0, 200) : undefined)
-        : toolName === "write"
-        ? (input as any).path + " (" + ((input as any).content?.length || 0) + " chars)"
-        : undefined,
+      rawCommand: rawCmd,
     });
 
     // Store for correlation with result (includes activity info, not outcome)
