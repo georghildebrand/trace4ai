@@ -912,6 +912,10 @@ class TraceUIComponent {
   private statusTimeout: ReturnType<typeof setTimeout> | null = null;
   /** View to restore after comment_input exits */
   private previousView: UIView = "timeline";
+  /** Decision group index when in decision_detail view */
+  private decisionGroupIndex = 0;
+  /** View to restore after detail exits (decision_detail or sub_timeline) */
+  private previousDetailView: UIView = "sub_timeline";
   focused = false;
 
   constructor(
@@ -1288,7 +1292,7 @@ class TraceUIComponent {
       return g?.id || undefined;
     }
     if (this.view === "decision_detail") {
-      const g = this.decisionGroups.length > 0 ? this.decisionGroups[this.selectedIndex] : null;
+      const g = this.decisionGroups[this.decisionGroupIndex];
       return g?.id || this.detailEvent?.decision || undefined;
     }
     if (this.view === "sub_timeline") {
@@ -1310,6 +1314,7 @@ class TraceUIComponent {
       if (!g) return;
       this.decisionActivities = g.activities;
       this.decisionTitle = g.title;
+      this.decisionGroupIndex = this.selectedIndex;
       this.selectedIndex = 0;
       this.view = "decision_detail";
     }
@@ -1344,6 +1349,7 @@ class TraceUIComponent {
       if (!a) return;
       if (a.events.length === 1) {
         this.detailEvent = a.events[0];
+        this.previousDetailView = this.view;
         this.view = "detail";
       } else {
         this.subActivity = a;
@@ -1356,7 +1362,8 @@ class TraceUIComponent {
       this.view = "timeline";
       this.decisionActivities = [];
       this.decisionTitle = "";
-      this.selectedIndex = 0;
+      this.selectedIndex = this.decisionGroupIndex;
+      this.decisionGroupIndex = 0;
       this.refreshGroups();
     }
     else if (data === "c" || data === "C") {
@@ -1386,20 +1393,19 @@ class TraceUIComponent {
     else if (matchesKey(data, "down")) { if (this.selectedIndex < this.subEvents.length - 1) this.selectedIndex++; }
     else if (matchesKey(data, "return")) {
       const e = this.subEvents[this.selectedIndex];
-      if (e) { this.detailEvent = e; this.view = "detail"; }
+      if (e) { this.detailEvent = e; this.previousDetailView = this.view; this.view = "detail"; }
     }
     else if (matchesKey(data, "escape")) {
       this.view = "decision_detail";
       this.subActivity = null;
       this.subEvents = [];
-      this.selectedIndex = 0;
     }
   }
 
   // ── Detail (single event) input ──
   private handleDetailInput(data: string): void {
     if (matchesKey(data, "return") || matchesKey(data, "escape")) {
-      this.view = "sub_timeline";
+      this.view = this.previousDetailView;
       this.detailEvent = null;
     }
   }
